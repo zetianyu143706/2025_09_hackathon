@@ -1,7 +1,6 @@
 openai
 azure-storage-blob
 azure-identity
-PyMuPDF
 Pillow
 requests
 jsonschema

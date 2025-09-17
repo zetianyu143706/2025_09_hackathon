@@ -10,14 +10,18 @@ class AzureStorageService:
         account_url = f"https://{storage_account_name}.blob.core.windows.net"
         self.blob_service_client = BlobServiceClient(account_url=account_url, credential=credential)
     
-    def find_pdf_files(self, container_name):
-        """Find all PDF files in the specified container"""
+    def find_image_files(self, container_name):
+        """Find all image files in the specified container"""
         container_client = self.blob_service_client.get_container_client(container_name)
-        pdf_blobs = [blob.name for blob in container_client.list_blobs() if blob.name.lower().endswith('.pdf')]
-        return pdf_blobs
+        image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff']
+        image_blobs = [
+            blob.name for blob in container_client.list_blobs() 
+            if any(blob.name.lower().endswith(ext) for ext in image_extensions)
+        ]
+        return image_blobs
     
-    def download_blob(self, container_name, blob_name, local_path):
-        """Download a blob from Azure Storage to local path"""
+    def download_image_blob(self, container_name, blob_name, local_path):
+        """Download an image blob from Azure Storage to local path"""
         blob_client = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name)
         
         with open(local_path, "wb") as download_file:

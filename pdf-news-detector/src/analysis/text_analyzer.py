@@ -27,7 +27,7 @@ def analyze_text(text: str) -> Tuple[float, Dict[str, Any]]:
     try:
         # Azure OpenAI configuration
         azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-mini")
+        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")  # Updated to use new deployment
         
         if not azure_endpoint:
             return 0.0, {
@@ -131,7 +131,7 @@ def _parse_gpt_response(response_text: str) -> Tuple[float, Dict[str, Any]]:
             "red_flags": analysis.get("red_flags", []),
             "positive_indicators": analysis.get("positive_indicators", []),
             "verdict": analysis.get("verdict", "UNKNOWN"),
-            "source": "Azure OpenAI GPT-4o-mini analysis"
+            "source": "Azure OpenAI GPT-4.1 analysis"
         }
         
         return overall_score, detailed_reasons
@@ -151,11 +151,11 @@ def _parse_gpt_response(response_text: str) -> Tuple[float, Dict[str, Any]]:
                 "error": "Failed to parse structured response",
                 "raw_response": response_text[:500],  # First 500 chars
                 "extracted_score": score,
-                "source": "Azure OpenAI GPT-4o-mini analysis (parsing error)"
+                "source": "Azure OpenAI GPT-4.1 analysis (parsing error)"
             }
         except:
             return 0.0, {
                 "error": "Complete parsing failure",
                 "raw_response": response_text[:200],
-                "source": "Azure OpenAI GPT-4o-mini analysis (critical error)"
+                "source": "Azure OpenAI GPT-4.1 analysis (critical error)"
             }

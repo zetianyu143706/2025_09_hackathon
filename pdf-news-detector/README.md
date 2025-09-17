@@ -1,33 +1,41 @@
-# PDF News Detector
+# Screenshot News Analyzer
 
 ## Overview
-The PDF News Detector is a Python project designed to analyze PDF news posts to determine their credibility. The application reads PDF files from Azure Storage, extracts text and images, analyzes the content, and generates a JSON report indicating whether the news post is likely true or fake.
+The Screenshot News Analyzer is a Python project designed to analyze screenshots of news content to determine their credibility. The application reads screenshot images from Azure Storage, extracts text using OCR, identifies embedded images, analyzes the content using AI, and generates a JSON report indicating whether the news content is likely true or fake.
 
 ## Features
-- Connects to Azure Blob Storage to download PDF files.
-- Extracts text and images from PDF documents using PyMuPDF.
-- Analyzes text using OpenAI's GPT model to assess credibility.
-- Evaluates images to determine if they are AI-generated or real.
-- Generates a comprehensive JSON report summarizing the analysis results.
+- Connects to Azure Blob Storage to download screenshot images.
+- Extracts text from screenshots using GPT-4.1 Vision OCR capabilities.
+- Identifies and analyzes embedded images within screenshots.
+- Analyzes text using GPT-4.1 to assess credibility.
+- Evaluates images to determine if they are AI-generated or authentic.
+- Performs consistency analysis between text and images to detect misleading combinations.
+- Generates comprehensive JSON reports with detailed analysis results.
+- Supports multiple screenshot types: social media posts, news websites, mobile apps.
 
 ## Project Structure
 ```
-pdf-news-detector
+screenshot-news-analyzer
 ├── src
-│   ├── main.py               # Entry point of the application
-│   ├── azure
-│   │   └── storage.py        # Azure Storage connection and PDF download
-│   ├── pdf
-│   │   └── reader.py         # PDF content extraction
+│   ├── main.py                    # Entry point of the application
+│   ├── azure_utils
+│   │   └── storage.py             # Azure Storage connection and image download
+│   ├── ocr
+│   │   ├── screenshot_extractor.py # OCR text extraction using GPT-4.1 Vision
+│   │   └── image_processor.py     # Image region detection and processing
+│   ├── preprocessing
+│   │   └── screenshot_handler.py  # Screenshot optimization and validation
 │   ├── analysis
-│   │   ├── text_analyzer.py  # Text analysis for credibility
-│   │   └── image_analyzer.py  # Image analysis for authenticity
+│   │   ├── text_analyzer.py       # Text analysis for credibility
+│   │   ├── image_analyzer.py      # Image analysis for authenticity
+│   │   └── consistency_analyzer.py # Text-image consistency analysis
 │   ├── report
-│   │   └── generator.py      # Report generation
+│   │   └── generator.py           # Report generation
 │   └── utils
-│       └── helpers.py        # Utility functions
-├── requirements.txt          # Project dependencies
-└── README.md                 # Project documentation
+│       └── helpers.py             # Utility functions
+├── requirements.txt               # Project dependencies
+├── test_screenshot_system.py      # System testing utilities
+└── README.md                      # Project documentation
 ```
 
 ## Installation

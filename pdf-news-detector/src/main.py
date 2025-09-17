@@ -1,80 +1,125 @@
 from azure_utils.storage import AzureStorageService
 import os
-from pdf.reader import extract_content
+from ocr.screenshot_extractor import extract_content_from_screenshot, validate_screenshot
+from ocr.image_processor import extract_images_from_screenshot, process_screenshot_for_images
 from analysis.text_analyzer import analyze_text
 from analysis.image_analyzer import analyze_image
-from analysis.coherence_analyzer import analyze_coherence
+from analysis.consistency_analyzer import analyze_consistency
 from report.generator import generate_report
 
 def main():
     # Initialize Azure Storage Service
     storage_service = AzureStorageService("zetianyuhackathonsa")
-    container_name = "training-picture"
+    container_name = "screenshot"  # Changed from training-picture to screenshots
     
-    # Find all PDF files in the container
-    pdf_blobs = storage_service.find_pdf_files(container_name)
+    # Find all image files in the container
+    image_blobs = storage_service.find_image_files(container_name)
     
-    if not pdf_blobs:
-        print("No PDF files found in the container.")
+    if not image_blobs:
+        print("No screenshot images found in the container.")
         return
     
-    print(f"Found {len(pdf_blobs)} PDF file(s): {pdf_blobs}")
+    print(f"Found {len(image_blobs)} screenshot(s): {image_blobs}")
     
-    # Process each PDF file
-    for blob_name in pdf_blobs:
-        print(f"\nProcessing: {blob_name}")
+    # Process each screenshot
+    for image_name in image_blobs:
+        print(f"\nProcessing screenshot: {image_name}")
         
-        pdf_path = f"./{blob_name}"
+        image_path = f"./{image_name}"
         
         try:
-            # Download PDF from Azure Blob Storage
-            storage_service.download_blob(container_name, blob_name, pdf_path)
+            # Download screenshot from Azure Blob Storage
+            storage_service.download_image_blob(container_name, image_name, image_path)
             
-            # Extract content from the PDF
-            text, images = extract_content(pdf_path)
+            # Read screenshot data
+            with open(image_path, 'rb') as f:
+                screenshot_bytes = f.read()
             
-            # Analyze text and images
-            text_score, text_details = analyze_text(text)
-            image_results = [analyze_image(image) for image in images]
+            # Validate screenshot
+            if not validate_screenshot(screenshot_bytes):
+                print(f"Skipping invalid screenshot: {image_name}")
+                continue
             
-            # Analyze coherence between text and images
-            coherence_score, coherence_details = analyze_coherence(text, images)
+            print("Extracting content using OCR...")
+            # Extract content from screenshot using GPT-4o OCR
+            text_content, image_regions, layout_info = extract_content_from_screenshot(screenshot_bytes)
             
-            # Extract image scores and details
-            if image_results:
+            if not text_content or len(text_content.strip()) < 20:
+                print(f"Insufficient text content extracted from {image_name}")
+                continue
+            
+            print(f"Extracted text length: {len(text_content)}")
+            print(f"Detected {len(image_regions)} image region(s)")
+            print(f"Source type: {layout_info.get('source_type', 'unknown')}")
+            
+            # Process images within the screenshot
+            print("Processing embedded images...")
+            image_analysis = process_screenshot_for_images(screenshot_bytes)
+            
+            # For analysis, we'll use the screenshot itself as the "image" since we can't extract sub-images precisely
+            images_for_analysis = []
+            if image_regions:
+                # Create focused analysis requests for each image region
+                for region in image_regions:
+                    images_for_analysis.append(screenshot_bytes)
+            
+            # Analyze text content
+            print("Analyzing text credibility...")
+            text_score, text_details = analyze_text(text_content)
+            
+            # Analyze images (using screenshot with region focus)
+            print("Analyzing image authenticity...")
+            if images_for_analysis:
+                image_results = [analyze_image(img) for img in images_for_analysis[:3]]  # Limit to 3 for efficiency
                 image_scores = [result[0] for result in image_results]
                 image_details_list = [result[1] for result in image_results]
                 image_score = sum(image_scores) / len(image_scores)
-                # Combine all image analysis details
                 image_details = {
                     "average_score": image_score,
                     "individual_analyses": image_details_list,
-                    "total_images": len(image_results)
+                    "total_images": len(image_regions),
+                    "screenshot_analysis": image_analysis
                 }
             else:
-                image_score = 0
-                image_details = {"message": "No images found in PDF", "total_images": 0}
+                image_score = 50  # Neutral score when no images detected
+                image_details = {
+                    "message": "No embedded images found in screenshot", 
+                    "total_images": 0,
+                    "screenshot_analysis": image_analysis
+                }
             
-            # Generate report with detailed analysis
+            # Analyze consistency between text and images
+            print("Analyzing text-image consistency...")
+            consistency_score, consistency_details = analyze_consistency(text_content, images_for_analysis)
+            
+            # Generate comprehensive report
+            print("Generating analysis report...")
             report = generate_report(
-                image_score=image_score, 
-                text_score=text_score, 
-                coherence_score=coherence_score,
-                pdf_name=blob_name,
+                image_score=image_score,
+                text_score=text_score,
+                consistency_score=consistency_score,
+                screenshot_name=image_name,
                 image_details=image_details,
                 text_details=text_details,
-                coherence_details=coherence_details
+                consistency_details=consistency_details,
+                layout_info=layout_info
             )
             
-            print(f"Report generated for {blob_name}:", report)
+            print(f"✅ Analysis completed for {image_name}")
+            print(f"Final Score: {report.get('final_score', 'N/A')}")
+            print(f"Verdict: {report.get('verdict', 'N/A')}")
             
+        except ValueError as e:
+            print(f"⚠️  Validation error for {image_name}: {str(e)}")
+        except RuntimeError as e:
+            print(f"❌ Processing error for {image_name}: {str(e)}")
         except Exception as e:
-            print(f"Error processing {blob_name}: {str(e)}")
+            print(f"❌ Unexpected error processing {image_name}: {str(e)}")
         
         finally:
-            # Clean up the downloaded PDF
-            if os.path.exists(pdf_path):
-                os.remove(pdf_path)
+            # Clean up the downloaded screenshot
+            if os.path.exists(image_path):
+                os.remove(image_path)
 
 if __name__ == "__main__":
     main()
