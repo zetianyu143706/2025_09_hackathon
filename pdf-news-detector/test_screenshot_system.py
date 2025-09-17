@@ -27,7 +27,7 @@ def test_screenshot_system():
         
         # Test finding image files instead of PDFs
         try:
-            container_name = "screenshots"  # Changed from training-picture
+            container_name = "screenshot"  # Updated to match config (singular)
             image_files = storage_service.find_image_files(container_name)
             print(f"✅ Found {len(image_files)} screenshot(s) in '{container_name}' container")
             if image_files:

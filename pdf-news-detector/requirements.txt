@@ -4,3 +4,4 @@ azure-identity
 Pillow
 requests
 jsonschema
+python-dotenv

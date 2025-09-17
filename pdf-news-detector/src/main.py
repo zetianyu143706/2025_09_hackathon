@@ -1,4 +1,5 @@
 from azure_utils.storage import AzureStorageService
+from config import config
 import os
 from ocr.screenshot_extractor import extract_content_from_screenshot, validate_screenshot
 from ocr.image_processor import extract_images_from_screenshot, process_screenshot_for_images
@@ -8,9 +9,17 @@ from analysis.consistency_analyzer import analyze_consistency
 from report.generator import generate_report
 
 def main():
-    # Initialize Azure Storage Service
-    storage_service = AzureStorageService("zetianyuhackathonsa")
-    container_name = "screenshot"  # Changed from training-picture to screenshots
+    # Validate configuration
+    if not config.validate():
+        print("❌ Configuration validation failed. Please check your settings.")
+        return
+    
+    # Print current configuration
+    config.print_config()
+    
+    # Initialize Azure Storage Service using config
+    storage_service = AzureStorageService(config.AZURE_STORAGE_ACCOUNT_NAME)
+    container_name = config.AZURE_STORAGE_CONTAINER_NAME  # Changed from training-picture to screenshots
     
     # Find all image files in the container
     image_blobs = storage_service.find_image_files(container_name)

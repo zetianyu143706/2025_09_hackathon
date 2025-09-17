@@ -3,6 +3,7 @@ from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 import os
 import json
 from typing import Tuple, Dict, Any
+from config import config
 
 def analyze_text(text: str) -> Tuple[float, Dict[str, Any]]:
     """
@@ -25,9 +26,9 @@ def analyze_text(text: str) -> Tuple[float, Dict[str, Any]]:
         }
     
     try:
-        # Azure OpenAI configuration
-        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4.1")  # Updated to use new deployment
+        # Azure OpenAI configuration from centralized config
+        azure_endpoint = config.AZURE_OPENAI_ENDPOINT
+        deployment_name = config.AZURE_OPENAI_VISION_DEPLOYMENT_NAME
         
         if not azure_endpoint:
             return 0.0, {
