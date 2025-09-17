@@ -58,7 +58,7 @@ def extract_content_from_screenshot(image_bytes: bytes) -> Tuple[str, List[Dict[
                     "content": [
                         {
                             "type": "text",
-                            "text": "Extract all text content and analyze the layout of this screenshot. Identify any embedded images and their locations."
+                            "text": "Extract all text content and analyze the layout of this screenshot. Identify any embedded images and their locations. IMPORTANT: Return ONLY valid JSON in the exact format specified in the system prompt. The 'extracted_text' field must be a single string containing all text concatenated together, NOT an object or array."
                         },
                         {
                             "type": "image_url",
@@ -70,7 +70,7 @@ def extract_content_from_screenshot(image_bytes: bytes) -> Tuple[str, List[Dict[
                     ]
                 }
             ],
-            temperature=0.1,  # Very low temperature for consistent OCR
+            temperature=0.0,  # Zero temperature for maximum consistency
             max_tokens=2000
         )
         
@@ -114,9 +114,13 @@ Analyze this screenshot and extract:
    - Note any visible branding or UI indicators
    - Detect mobile vs desktop layout
 
-Respond ONLY in valid JSON format:
+CRITICAL: Respond ONLY in valid JSON format. Do not include any explanations, comments, or text outside the JSON object.
+
+The "extracted_text" field MUST be a single string containing all text, not an object or array.
+
+Example format:
 {
-    "extracted_text": "Complete text content with preserved hierarchy",
+    "extracted_text": "Angela Eichhorst September 17, 2025 I wear orange to protect myself and to show respect for every other hunter in the field CONNECTICUT SENTINEL",
     "image_regions": [
         {
             "description": "detailed description of the image content",
@@ -151,11 +155,67 @@ Focus on accuracy and completeness. Extract every piece of readable text and ide
 def _parse_ocr_response(response_text: str) -> Tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
     """Parses the GPT OCR response and extracts structured data."""
     try:
-        # Parse JSON response
-        analysis = json.loads(response_text)
+        # Clean the response text to handle potential formatting issues
+        cleaned_response = response_text.strip()
         
-        # Extract text content
-        text_content = analysis.get("extracted_text", "")
+        # Parse JSON response
+        analysis = json.loads(cleaned_response)
+        
+        # Extract text content - handle both string and object formats
+        extracted_text_field = analysis.get("extracted_text", "")
+        
+        if isinstance(extracted_text_field, str):
+            # Expected format: simple string
+            text_content = extracted_text_field
+        elif isinstance(extracted_text_field, dict):
+            # GPT returned structured object - flatten it to string
+            text_parts = []
+            
+            # Extract metadata
+            if "metadata" in extracted_text_field:
+                metadata = extracted_text_field["metadata"]
+                if isinstance(metadata, dict):
+                    for key, value in metadata.items():
+                        if value:
+                            text_parts.append(str(value))
+            
+            # Extract body text
+            if "body" in extracted_text_field:
+                body = extracted_text_field["body"]
+                if isinstance(body, list):
+                    text_parts.extend([str(item) for item in body if item])
+                elif body:
+                    text_parts.append(str(body))
+            
+            # Extract captions
+            if "caption" in extracted_text_field:
+                caption = extracted_text_field["caption"]
+                if isinstance(caption, list):
+                    text_parts.extend([str(item) for item in caption if item])
+                elif caption:
+                    text_parts.append(str(caption))
+            
+            # Extract branding
+            if "branding" in extracted_text_field:
+                branding = extracted_text_field["branding"]
+                if isinstance(branding, list):
+                    text_parts.extend([str(item) for item in branding if item])
+                elif branding:
+                    text_parts.append(str(branding))
+            
+            # Extract other text
+            if "other_text" in extracted_text_field:
+                other = extracted_text_field["other_text"]
+                if isinstance(other, list):
+                    text_parts.extend([str(item) for item in other if item])
+                elif other:
+                    text_parts.append(str(other))
+            
+            # Join all text parts
+            text_content = " ".join(text_parts) if text_parts else ""
+        else:
+            # Fallback: convert whatever we got to string
+            text_content = str(extracted_text_field)
         
         # Extract image regions
         image_regions = analysis.get("image_regions", [])
@@ -172,9 +232,17 @@ def _parse_ocr_response(response_text: str) -> Tuple[str, List[Dict[str, Any]], 
         return text_content, image_regions, layout_info
         
     except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse OCR response as JSON: {str(e)}")
+        # Provide more detailed error information
+        error_msg = f"Failed to parse OCR response as JSON: {str(e)}"
+        print(f"DEBUG: JSON Parse Error - {error_msg}")
+        print(f"DEBUG: Response text length: {len(response_text)}")
+        print(f"DEBUG: First 500 chars: {response_text[:500]}")
+        print(f"DEBUG: Last 500 chars: {response_text[-500:]}")
+        raise ValueError(error_msg)
     except Exception as e:
-        raise ValueError(f"Error processing OCR response: {str(e)}")
+        error_msg = f"Error processing OCR response: {str(e)}"
+        print(f"DEBUG: Processing Error - {error_msg}")
+        raise ValueError(error_msg)
 
 def validate_screenshot(image_bytes: bytes) -> bool:
     """

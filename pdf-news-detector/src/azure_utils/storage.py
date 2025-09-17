@@ -20,6 +20,36 @@ class AzureStorageService:
         ]
         return image_blobs
     
+    def blob_exists(self, container_name, blob_name):
+        """Check if a specific blob exists in the container"""
+        try:
+            blob_client = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+            blob_client.get_blob_properties()
+            return True
+        except Exception:
+            return False
+    
+    def validate_image_files(self, container_name, file_names):
+        """Validate which image files exist in the container from a given list
+        
+        Args:
+            container_name (str): Name of the container
+            file_names (list): List of file names to validate
+            
+        Returns:
+            tuple: (existing_files, missing_files)
+        """
+        existing_files = []
+        missing_files = []
+        
+        for file_name in file_names:
+            if self.blob_exists(container_name, file_name):
+                existing_files.append(file_name)
+            else:
+                missing_files.append(file_name)
+        
+        return existing_files, missing_files
+    
     def download_image_blob(self, container_name, blob_name, local_path):
         """Download an image blob from Azure Storage to local path"""
         blob_client = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name)

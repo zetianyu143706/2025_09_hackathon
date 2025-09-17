@@ -47,11 +47,11 @@ class Config:
     def validate(cls) -> bool:
         """Validate that all required configuration is present"""
         if not cls.AZURE_OPENAI_ENDPOINT:
-            print("❌ AZURE_OPENAI_ENDPOINT is required")
+            print("[ERROR] AZURE_OPENAI_ENDPOINT is required")
             return False
             
         if not cls.AZURE_STORAGE_ACCOUNT_NAME:
-            print("❌ AZURE_STORAGE_ACCOUNT_NAME is required")
+            print("[ERROR] AZURE_STORAGE_ACCOUNT_NAME is required")
             return False
             
         return True
@@ -59,7 +59,7 @@ class Config:
     @classmethod
     def print_config(cls) -> None:
         """Print current configuration (for debugging)"""
-        print("🔧 Current Configuration:")
+        print("[CONFIG] Current Configuration:")
         print(f"   Azure OpenAI Endpoint: {cls.AZURE_OPENAI_ENDPOINT}")
         print(f"   Vision Deployment: {cls.AZURE_OPENAI_VISION_DEPLOYMENT_NAME}")
         print(f"   API Version: {cls.AZURE_OPENAI_API_VERSION}")

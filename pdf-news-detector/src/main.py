@@ -1,6 +1,7 @@
 from azure_utils.storage import AzureStorageService
 from config import config
 import os
+from utils.cli import parse_arguments, get_screenshots_to_process
 from ocr.screenshot_extractor import extract_content_from_screenshot, validate_screenshot
 from ocr.image_processor import extract_images_from_screenshot, process_screenshot_for_images
 from analysis.text_analyzer import analyze_text
@@ -9,9 +10,12 @@ from analysis.consistency_analyzer import analyze_consistency
 from report.generator import generate_report
 
 def main():
+    # Parse command line arguments
+    args = parse_arguments()
+    
     # Validate configuration
     if not config.validate():
-        print("❌ Configuration validation failed. Please check your settings.")
+        print("[ERROR] Configuration validation failed. Please check your settings.")
         return
     
     # Print current configuration
@@ -19,19 +23,15 @@ def main():
     
     # Initialize Azure Storage Service using config
     storage_service = AzureStorageService(config.AZURE_STORAGE_ACCOUNT_NAME)
-    container_name = config.AZURE_STORAGE_CONTAINER_NAME  # Changed from training-picture to screenshots
+    container_name = config.AZURE_STORAGE_CONTAINER_NAME
     
-    # Find all image files in the container
-    image_blobs = storage_service.find_image_files(container_name)
+    # Determine which screenshots to process based on arguments
+    screenshots_to_process = get_screenshots_to_process(args, storage_service, container_name)
     
-    if not image_blobs:
-        print("No screenshot images found in the container.")
-        return
+    print(f"\n[INFO] Starting analysis of {len(screenshots_to_process)} screenshot(s)...")
     
-    print(f"Found {len(image_blobs)} screenshot(s): {image_blobs}")
-    
-    # Process each screenshot
-    for image_name in image_blobs:
+    # Process each specified screenshot
+    for image_name in screenshots_to_process:
         print(f"\nProcessing screenshot: {image_name}")
         
         image_path = f"./{image_name}"
@@ -53,7 +53,11 @@ def main():
             # Extract content from screenshot using GPT-4o OCR
             text_content, image_regions, layout_info = extract_content_from_screenshot(screenshot_bytes)
             
-            if not text_content or len(text_content.strip()) < 20:
+            # Debug: Check what type text_content is
+            print(f"Debug: text_content type = {type(text_content)}")
+            print(f"Debug: text_content value = {text_content}")
+            
+            if not text_content or (isinstance(text_content, str) and len(text_content.strip()) < 20):
                 print(f"Insufficient text content extracted from {image_name}")
                 continue
             
@@ -114,16 +118,16 @@ def main():
                 layout_info=layout_info
             )
             
-            print(f"✅ Analysis completed for {image_name}")
+            print(f"[SUCCESS] Analysis completed for {image_name}")
             print(f"Final Score: {report.get('final_score', 'N/A')}")
             print(f"Verdict: {report.get('verdict', 'N/A')}")
             
         except ValueError as e:
-            print(f"⚠️  Validation error for {image_name}: {str(e)}")
+            print(f"[WARNING] Validation error for {image_name}: {str(e)}")
         except RuntimeError as e:
-            print(f"❌ Processing error for {image_name}: {str(e)}")
+            print(f"[ERROR] Processing error for {image_name}: {str(e)}")
         except Exception as e:
-            print(f"❌ Unexpected error processing {image_name}: {str(e)}")
+            print(f"[ERROR] Unexpected error processing {image_name}: {str(e)}")
         
         finally:
             # Clean up the downloaded screenshot
