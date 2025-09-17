@@ -3,6 +3,7 @@ import os
 from pdf.reader import extract_content
 from analysis.text_analyzer import analyze_text
 from analysis.image_analyzer import analyze_image
+from analysis.coherence_analyzer import analyze_coherence
 from report.generator import generate_report
 
 def main():
@@ -36,6 +37,9 @@ def main():
             text_score, text_details = analyze_text(text)
             image_results = [analyze_image(image) for image in images]
             
+            # Analyze coherence between text and images
+            coherence_score, coherence_details = analyze_coherence(text, images)
+            
             # Extract image scores and details
             if image_results:
                 image_scores = [result[0] for result in image_results]
@@ -55,9 +59,11 @@ def main():
             report = generate_report(
                 image_score=image_score, 
                 text_score=text_score, 
+                coherence_score=coherence_score,
                 pdf_name=blob_name,
                 image_details=image_details,
-                text_details=text_details
+                text_details=text_details,
+                coherence_details=coherence_details
             )
             
             print(f"Report generated for {blob_name}:", report)

@@ -7,9 +7,11 @@ from azure_utils.storage import AzureStorageService
 def generate_report(
     image_score: float, 
     text_score: float, 
+    coherence_score: float,
     pdf_name: str,
     image_details: Dict[str, Any] = None,
-    text_details: Dict[str, Any] = None
+    text_details: Dict[str, Any] = None,
+    coherence_details: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
     Generates a comprehensive credibility report and uploads it to Azure Blob Storage.
@@ -17,20 +19,23 @@ def generate_report(
     Args:
         image_score: Image authenticity score (0-100)
         text_score: Text credibility score (0-100)
+        coherence_score: Text-image coherence score (0-100)
         pdf_name: Name of the analyzed PDF file
         image_details: Detailed image analysis results
         text_details: Detailed text analysis results
+        coherence_details: Detailed coherence analysis results
         
     Returns:
         Dict[str, Any]: The complete report data
     """
     
-    # Calculate weighted final score (60% text, 40% image)
-    # Text is weighted higher as it's often more reliable for fake news detection
-    text_weight = 0.6
-    image_weight = 0.4
+    # Calculate weighted final score (50% text, 30% coherence, 20% image)
+    # Coherence is heavily weighted as it's crucial for detecting misleading content
+    text_weight = 0.5
+    coherence_weight = 0.3
+    image_weight = 0.2
     
-    final_score = (text_score * text_weight) + (image_score * image_weight)
+    final_score = (text_score * text_weight) + (coherence_score * coherence_weight) + (image_score * image_weight)
     
     # Determine verdict based on final score
     verdict = _get_verdict_from_score(final_score)
@@ -44,14 +49,17 @@ def generate_report(
         "score_breakdown": {
             "text_score": round(text_score, 1),
             "image_score": round(image_score, 1),
+            "coherence_score": round(coherence_score, 1),
             "weights": {
                 "text_weight": text_weight,
+                "coherence_weight": coherence_weight,
                 "image_weight": image_weight
             }
         },
         "detailed_analysis": {
             "text_analysis": text_details or {"score": text_score, "source": "basic_analysis"},
-            "image_analysis": image_details or {"score": image_score, "source": "basic_analysis"}
+            "image_analysis": image_details or {"score": image_score, "source": "basic_analysis"},
+            "coherence_analysis": coherence_details or {"score": coherence_score, "source": "basic_analysis"}
         },
         "metadata": {
             "analyzer_version": "1.0",
