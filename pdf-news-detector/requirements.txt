@@ -5,3 +5,10 @@ Pillow
 requests
 jsonschema
 python-dotenv
+
+# Web framework dependencies
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+aiofiles

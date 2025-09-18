@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Results - Screenshot News Analyzer{% endblock %}
+
+{% block content %}
+<div class="results-container">
+    <div class="results-card">
+        <h2>Analysis Results</h2>
+        <div id="loading-state" class="loading-state">
+            <div class="spinner"></div>
+            <p id="loading-text">Checking analysis status...</p>
+        </div>
+        
+        <div id="results-content" class="results-content" style="display: none;">
+            <!-- Results will be populated by JavaScript -->
+        </div>
+        
+        <div id="error-state" class="error-state" style="display: none;">
+            <p id="error-text"></p>
+            <button onclick="window.location.href='/'" class="back-btn">Upload Another File</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Get job ID from URL
+    const pathParts = window.location.pathname.split('/');
+    const jobId = pathParts[pathParts.length - 1];
+    
+    if (!jobId || jobId === 'results') {
+        showError('Invalid job ID');
+    } else {
+        checkStatus();
+    }
+    
+    async function checkStatus() {
+        try {
+            const status = await checkJobStatus(jobId);
+            updateUI(status);
+            
+            // Continue polling if not completed
+            if (status.status !== 'completed' && status.status !== 'error') {
+                setTimeout(checkStatus, 2000);
+            }
+        } catch (error) {
+            showError('Failed to check status: ' + error.message);
+        }
+    }
+    
+    function updateUI(status) {
+        const loadingState = document.getElementById('loading-state');
+        const resultsContent = document.getElementById('results-content');
+        const loadingText = document.getElementById('loading-text');
+        
+        // Update loading text based on status
+        const statusMessages = {
+            'uploaded': 'Processing uploaded file...',
+            'processing': 'Analyzing screenshot content...',
+            'extracting_text': 'Extracting text using OCR...',
+            'analyzing_text': 'Analyzing text credibility...',
+            'analyzing_images': 'Analyzing image authenticity...',
+            'generating_report': 'Generating final report...',
+            'completed': 'Analysis complete!',
+            'error': 'Analysis failed'
+        };
+        
+        loadingText.textContent = statusMessages[status.status] || 'Processing...';
+        
+        if (status.status === 'completed') {
+            showResults(status);
+        } else if (status.status === 'error') {
+            showError(status.error || 'Analysis failed');
+        }
+    }
+    
+    function showResults(status) {
+        const loadingState = document.getElementById('loading-state');
+        const resultsContent = document.getElementById('results-content');
+        
+        loadingState.style.display = 'none';
+        resultsContent.style.display = 'block';
+        
+        // For now, show basic status info
+        // In Step 6, we'll implement full results display
+        resultsContent.innerHTML = `
+            <div class="result-summary">
+                <h3>Analysis Complete!</h3>
+                <p><strong>File:</strong> ${status.filename}</p>
+                <p><strong>Status:</strong> ${status.status}</p>
+                <p><strong>Progress:</strong> ${status.progress}%</p>
+                <div class="placeholder-results">
+                    <p>🎉 Your screenshot has been analyzed successfully!</p>
+                    <p>Full results display will be implemented in Step 6.</p>
+                    <p><strong>Job ID:</strong> ${status.job_id}</p>
+                </div>
+                <button onclick="window.location.href='/'" class="back-btn">Analyze Another Screenshot</button>
+            </div>
+        `;
+    }
+    
+    function showError(message) {
+        const loadingState = document.getElementById('loading-state');
+        const errorState = document.getElementById('error-state');
+        const errorText = document.getElementById('error-text');
+        
+        loadingState.style.display = 'none';
+        errorState.style.display = 'block';
+        errorText.textContent = message;
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Screenshot - Screenshot News Analyzer{% endblock %}
+
+{% block content %}
+<div class="upload-container">
+    <div class="upload-card">
+        <h2>Upload Screenshot for Analysis</h2>
+        <p class="description">
+            Upload a screenshot of news content to analyze its credibility using AI.
+            Supported formats: JPG, PNG, WEBP, BMP, TIFF
+        </p>
+        
+        <div id="upload-area" class="upload-area">
+            <div class="upload-content">
+                <div class="upload-icon">📁</div>
+                <p class="upload-text">
+                    <strong>Click to select</strong> or drag and drop your screenshot here
+                </p>
+                <p class="upload-hint">
+                    Maximum file size: 10MB
+                </p>
+            </div>
+            <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff" multiple>
+        </div>
+        
+        <div id="file-preview" class="file-preview" style="display: none;">
+            <h3>Selected File:</h3>
+            <div id="file-info" class="file-info"></div>
+        </div>
+        
+        <div id="upload-progress" class="upload-progress" style="display: none;">
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+            </div>
+            <p id="progress-text" class="progress-text">Uploading...</p>
+        </div>
+        
+        <div id="error-message" class="error-message" style="display: none;"></div>
+        
+        <button id="upload-btn" class="upload-btn" disabled>
+            Upload & Analyze
+        </button>
+    </div>
+    
+    <div class="features">
+        <div class="feature">
+            <h3>🔍 Text Analysis</h3>
+            <p>Extract and analyze text content for credibility indicators</p>
+        </div>
+        <div class="feature">
+            <h3>🖼️ Image Analysis</h3>
+            <p>Detect AI-generated images and analyze authenticity</p>
+        </div>
+        <div class="feature">
+            <h3>⚖️ Consistency Check</h3>
+            <p>Verify alignment between text and visual content</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Basic upload functionality (we'll enhance this later)
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Upload page script loaded');
+        
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+        const filePreview = document.getElementById('file-preview');
+        const fileInfo = document.getElementById('file-info');
+        const errorMessage = document.getElementById('error-message');
+        
+        console.log('Elements found:', {
+            uploadArea: !!uploadArea,
+            fileInput: !!fileInput,
+            uploadBtn: !!uploadBtn,
+            filePreview: !!filePreview,
+            fileInfo: !!fileInfo,
+            errorMessage: !!errorMessage
+        });
+        
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // File selection handler
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        // Drag and drop handlers
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            console.log('Files dropped:', files.length);
+            if (files.length > 0) {
+                // Store the dropped file in a variable instead of trying to assign to fileInput.files
+                window.selectedFile = files[0];
+                console.log('Stored dropped file:', window.selectedFile.name);
+                
+                // Create a new FileList and assign it (this is the proper way)
+                const dt = new DataTransfer();
+                dt.items.add(files[0]);
+                fileInput.files = dt.files;
+                
+                handleFileSelect();
+            }
+        });
+        
+        function handleFileSelect() {
+            console.log('handleFileSelect called');
+            const file = fileInput.files[0];
+            console.log('File in handleFileSelect:', file);
+            
+            if (!file) {
+                console.log('No file in handleFileSelect, returning');
+                return;
+            }
+            
+            // Store the file globally so we can access it later
+            window.selectedFile = file;
+            console.log('Stored file globally:', window.selectedFile.name);
+            
+            // Validate file
+            const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff'];
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            
+            if (!validTypes.includes(file.type)) {
+                showError('Please select a valid image file (JPG, PNG, WEBP, BMP, TIFF)');
+                return;
+            }
+            
+            if (file.size > maxSize) {
+                showError('File size must be less than 10MB');
+                return;
+            }
+            
+            // Show file preview
+            hideError();
+            fileInfo.innerHTML = `
+                <p><strong>Name:</strong> ${file.name}</p>
+                <p><strong>Size:</strong> ${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                <p><strong>Type:</strong> ${file.type}</p>
+            `;
+            filePreview.style.display = 'block';
+            uploadBtn.disabled = false;
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            filePreview.style.display = 'none';
+            uploadBtn.disabled = true;
+        }
+        
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        // Upload button handler
+        uploadBtn.addEventListener('click', async () => {
+            console.log('Upload button clicked!');
+            
+            // Try to get file from fileInput first, then fallback to stored file
+            let file = fileInput.files[0] || window.selectedFile;
+            console.log('Selected file:', file);
+            console.log('FileInput.files:', fileInput.files);
+            console.log('FileInput.files.length:', fileInput.files.length);
+            console.log('Window.selectedFile:', window.selectedFile);
+            
+            if (!file) {
+                console.log('No file selected');
+                showError('Please select a file first');
+                return;
+            }
+            
+            try {
+                // Show upload progress
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
+                showProgress();
+                
+                console.log('Calling uploadFile function...');
+                
+                // Check if uploadFile function exists
+                if (typeof window.uploadFile !== 'function') {
+                    throw new Error('uploadFile function not found. Check if app.js is loaded.');
+                }
+                
+                // Upload file
+                const response = await window.uploadFile(file);
+                console.log('Upload response:', response);
+                
+                // Show success and redirect to results
+                showSuccessMessage(`File uploaded successfully! Job ID: ${response.job_id}`);
+                
+                // Redirect to results page after a short delay
+                setTimeout(() => {
+                    window.location.href = `/results/${response.job_id}`;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Upload failed:', error);
+                showError('Upload failed: ' + error.message);
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload & Analyze';
+                hideProgress();
+            }
+        });
+        
+        function showProgress() {
+            document.getElementById('upload-progress').style.display = 'block';
+            document.getElementById('progress-fill').style.width = '50%';
+            document.getElementById('progress-text').textContent = 'Uploading file...';
+        }
+        
+        function hideProgress() {
+            document.getElementById('upload-progress').style.display = 'none';
+        }
+        
+        function showSuccessMessage(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            successDiv.style.cssText = `
+                background: #d4edda;
+                color: #155724;
+                padding: 1rem;
+                border-radius: 8px;
+                margin-bottom: 1rem;
+                border: 1px solid #c3e6cb;
+            `;
+            
+            // Insert after the upload area
+            const uploadArea = document.getElementById('upload-area');
+            uploadArea.parentNode.insertBefore(successDiv, uploadArea.nextSibling);
+        }
+    });
+</script>
+{% endblock %}
