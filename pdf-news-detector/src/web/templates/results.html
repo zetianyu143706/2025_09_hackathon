@@ -136,7 +136,6 @@
                     <div class="verdict-info">
                         <h3>${verdictInfo.emoji} ${verdict.replace(/_/g, ' ')}</h3>
                         <p class="verdict-description">${verdictInfo.description}</p>
-                        ${scoreBreakdown.weights ? createWeightsInfo(scoreBreakdown.weights) : ''}
                     </div>
                 </div>
                 
@@ -147,6 +146,7 @@
                         ${createScoreBar('Image Authenticity', scoreBreakdown.image_score || 0, '🖼️')}
                         ${createScoreBar('Text-Image Consistency', scoreBreakdown.consistency_score || 0, '⚖️')}
                     </div>
+                    ${scoreBreakdown.weights ? createWeightsInfo(scoreBreakdown.weights) : ''}
                 </div>
                 
                 ${createDetailedAnalysis(results.detailed_analysis)}
@@ -256,6 +256,31 @@
         return 'score-danger';
     }
     
+    function createWeightsInfo(weights) {
+        return `
+            <div class="weights-info">
+                <h4>⚖️ Scoring Weights</h4>
+                <div class="weights-grid">
+                    <div class="weight-item">
+                        <span class="weight-label">Text Analysis:</span>
+                        <span class="weight-value">${Math.round(weights.text_weight * 100)}%</span>
+                    </div>
+                    <div class="weight-item">
+                        <span class="weight-label">Consistency Analysis:</span>
+                        <span class="weight-value">${Math.round(weights.consistency_weight * 100)}%</span>
+                    </div>
+                    <div class="weight-item">
+                        <span class="weight-label">Image Analysis:</span>
+                        <span class="weight-value">${Math.round(weights.image_weight * 100)}%</span>
+                    </div>
+                </div>
+                <p class="weights-explanation">
+                    These weights determine how much each component contributes to the final credibility score.
+                </p>
+            </div>
+        `;
+    }
+    
     function createDetailedAnalysis(detailedAnalysis) {
         if (!detailedAnalysis) return '';
         
@@ -281,60 +306,53 @@
     }
     
     function createTextAnalysisSection(textAnalysis) {
-        let html = `<div class="analysis-section text-analysis-section">
+        let html = `<div class="analysis-section">
             <h4>📝 Text Analysis</h4>
             <div class="analysis-content">`;
         
         if (textAnalysis.verdict) {
-            html += `<div class="verdict-badge ${getVerdictClass(textAnalysis.verdict)}">
-                <strong>Verdict:</strong> ${textAnalysis.verdict}
-            </div>`;
+            html += `<p><strong>Verdict:</strong> ${textAnalysis.verdict}</p>`;
         }
         
-        // Detailed breakdown
+        // Show detailed breakdown if available
         if (textAnalysis.breakdown) {
-            html += `<div class="score-breakdown-detailed">
-                <h5>📊 Score Breakdown</h5>
-                <div class="detailed-scores">`;
+            html += '<div class="score-breakdown-detailed">';
+            html += '<h5>📊 Component Scores</h5>';
             
-            for (const [key, data] of Object.entries(textAnalysis.breakdown)) {
-                const score = data.score || 0;
-                const reasoning = data.reasoning || 'No details available';
-                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                
-                html += `<div class="detailed-score-item">
-                    <div class="score-item-header">
-                        <span class="score-item-label">${label}</span>
-                        <span class="score-item-value ${getScoreColorClass(score)}">${score}/100</span>
+            for (const [component, details] of Object.entries(textAnalysis.breakdown)) {
+                const componentName = component.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                html += `
+                    <div class="component-score">
+                        <div class="component-header">
+                            <span class="component-name">${componentName}</span>
+                            <span class="component-score-value">${details.score}/100</span>
+                        </div>
+                        <div class="component-reasoning">${details.reasoning}</div>
+                        <div class="score-bar-mini">
+                            <div class="score-fill-mini ${getScoreColorClass(details.score)}" style="width: ${details.score}%"></div>
+                        </div>
                     </div>
-                    <div class="score-item-bar">
-                        <div class="score-item-fill ${getScoreColorClass(score)}" style="width: ${score}%"></div>
-                    </div>
-                    <div class="score-item-reasoning">${reasoning}</div>
-                </div>`;
+                `;
             }
-            
-            html += `</div></div>`;
+            html += '</div>';
         }
         
-        // Red flags
         if (textAnalysis.red_flags && textAnalysis.red_flags.length > 0) {
             html += `<div class="red-flags">
-                <h5>⚠️ Concerns Found:</h5>
-                <ul class="flag-list">`;
+                <strong>⚠️ Concerns Found:</strong>
+                <ul>`;
             textAnalysis.red_flags.forEach(flag => {
-                html += `<li class="flag-item red-flag">${flag}</li>`;
+                html += `<li>${flag}</li>`;
             });
             html += `</ul></div>`;
         }
         
-        // Positive indicators
         if (textAnalysis.positive_indicators && textAnalysis.positive_indicators.length > 0) {
             html += `<div class="positive-indicators">
-                <h5>✅ Positive Indicators:</h5>
-                <ul class="flag-list">`;
+                <strong>✅ Positive Indicators:</strong>
+                <ul>`;
             textAnalysis.positive_indicators.forEach(indicator => {
-                html += `<li class="flag-item positive-flag">${indicator}</li>`;
+                html += `<li>${indicator}</li>`;
             });
             html += `</ul></div>`;
         }
@@ -344,84 +362,87 @@
     }
     
     function createImageAnalysisSection(imageAnalysis) {
-        let html = `<div class="analysis-section image-analysis-section">
+        let html = `<div class="analysis-section">
             <h4>🖼️ Image Analysis</h4>
             <div class="analysis-content">`;
         
-        if (imageAnalysis.average_score !== undefined) {
-            html += `<div class="section-score">
-                <strong>Overall Image Score:</strong> 
-                <span class="score-highlight ${getScoreColorClass(imageAnalysis.average_score)}">${Math.round(imageAnalysis.average_score)}/100</span>
-            </div>`;
-        }
-        
-        // Individual image analyses
+        // Show individual image analyses if available
         if (imageAnalysis.individual_analyses && imageAnalysis.individual_analyses.length > 0) {
             imageAnalysis.individual_analyses.forEach((analysis, index) => {
-                html += `<div class="image-analysis-item">
-                    <h6>🔍 Image ${index + 1} Analysis</h6>`;
-                
-                if (analysis.verdict) {
-                    html += `<div class="verdict-badge ${getVerdictClass(analysis.verdict)}">
-                        <strong>Verdict:</strong> ${analysis.verdict}
-                    </div>`;
+                html += `<div class="individual-image-analysis">`;
+                if (imageAnalysis.individual_analyses.length > 1) {
+                    html += `<h6>Image ${index + 1} Analysis</h6>`;
                 }
                 
-                // Detailed breakdown for this image
+                // Show detailed breakdown
                 if (analysis.breakdown) {
-                    html += `<div class="score-breakdown-detailed">
-                        <h6>📊 Authenticity Checks</h6>
-                        <div class="detailed-scores">`;
+                    html += '<div class="score-breakdown-detailed">';
+                    html += '<h6>📊 Component Scores</h6>';
                     
-                    for (const [key, data] of Object.entries(analysis.breakdown)) {
-                        const score = data.score || 0;
-                        const reasoning = data.reasoning || 'No details available';
-                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        
-                        html += `<div class="detailed-score-item">
-                            <div class="score-item-header">
-                                <span class="score-item-label">${label}</span>
-                                <span class="score-item-value ${getScoreColorClass(score)}">${score}/100</span>
+                    for (const [component, details] of Object.entries(analysis.breakdown)) {
+                        const componentName = component.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        html += `
+                            <div class="component-score">
+                                <div class="component-header">
+                                    <span class="component-name">${componentName}</span>
+                                    <span class="component-score-value">${details.score}/100</span>
+                                </div>
+                                <div class="component-reasoning">${details.reasoning}</div>
+                                <div class="score-bar-mini">
+                                    <div class="score-fill-mini ${getScoreColorClass(details.score)}" style="width: ${details.score}%"></div>
+                                </div>
                             </div>
-                            <div class="score-item-bar">
-                                <div class="score-item-fill ${getScoreColorClass(score)}" style="width: ${score}%"></div>
-                            </div>
-                            <div class="score-item-reasoning">${reasoning}</div>
-                        </div>`;
+                        `;
                     }
-                    
-                    html += `</div></div>`;
+                    html += '</div>';
                 }
                 
-                // Red flags for this image
                 if (analysis.red_flags && analysis.red_flags.length > 0) {
                     html += `<div class="red-flags">
-                        <h6>⚠️ Suspicious Signs:</h6>
-                        <ul class="flag-list">`;
+                        <strong>⚠️ Issues Found:</strong>
+                        <ul>`;
                     analysis.red_flags.forEach(flag => {
-                        html += `<li class="flag-item red-flag">${flag}</li>`;
+                        html += `<li>${flag}</li>`;
                     });
                     html += `</ul></div>`;
                 }
                 
-                // Authentic indicators
                 if (analysis.authentic_indicators && analysis.authentic_indicators.length > 0) {
                     html += `<div class="positive-indicators">
-                        <h6>✅ Authentic Signs:</h6>
-                        <ul class="flag-list">`;
+                        <strong>✅ Authenticity Indicators:</strong>
+                        <ul>`;
                     analysis.authentic_indicators.forEach(indicator => {
-                        html += `<li class="flag-item positive-flag">${indicator}</li>`;
+                        html += `<li>${indicator}</li>`;
                     });
                     html += `</ul></div>`;
                 }
                 
-                html += `</div>`;
+                if (analysis.verdict) {
+                    html += `<p><strong>Verdict:</strong> ${analysis.verdict}</p>`;
+                }
+                
+                html += '</div>';
             });
         }
         
-        // Screenshot analysis details
+        // Show screenshot analysis if available
         if (imageAnalysis.screenshot_analysis) {
-            html += createScreenshotAnalysisSection(imageAnalysis.screenshot_analysis);
+            const screenshot = imageAnalysis.screenshot_analysis;
+            if (screenshot.image_descriptions && screenshot.image_descriptions.length > 0) {
+                html += '<div class="screenshot-analysis">';
+                html += '<h6>📷 Screenshot Content Analysis</h6>';
+                screenshot.image_descriptions.forEach((desc, index) => {
+                    html += `
+                        <div class="image-description">
+                            <p><strong>Description:</strong> ${desc.description}</p>
+                            <p><strong>Type:</strong> ${desc.type} | <strong>Size:</strong> ${desc.size}</p>
+                            <p><strong>Emotional Tone:</strong> ${desc.emotional_tone}</p>
+                            <p><strong>Context Relevance:</strong> ${desc.context_relevance}</p>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
         }
         
         html += '</div></div>';
@@ -429,84 +450,87 @@
     }
     
     function createConsistencyAnalysisSection(consistencyAnalysis) {
-        let html = `<div class="analysis-section consistency-analysis-section">
+        let html = `<div class="analysis-section">
             <h4>⚖️ Consistency Analysis</h4>
             <div class="analysis-content">`;
         
         if (consistencyAnalysis.verdict) {
-            html += `<div class="verdict-badge ${getVerdictClass(consistencyAnalysis.verdict)}">
-                <strong>Verdict:</strong> ${consistencyAnalysis.verdict}
-            </div>`;
+            html += `<p><strong>Verdict:</strong> ${consistencyAnalysis.verdict}</p>`;
         }
         
         if (consistencyAnalysis.consistency_summary) {
-            html += `<div class="consistency-summary">
-                <p><strong>Summary:</strong> ${consistencyAnalysis.consistency_summary}</p>
-            </div>`;
+            html += `<p><strong>Summary:</strong> ${consistencyAnalysis.consistency_summary}</p>`;
         }
         
-        // Detailed consistency breakdown
+        // Show detailed breakdown if available
         if (consistencyAnalysis.breakdown) {
-            html += `<div class="score-breakdown-detailed">
-                <h5>📊 Consistency Checks</h5>
-                <div class="detailed-scores">`;
+            html += '<div class="score-breakdown-detailed">';
+            html += '<h5>📊 Component Scores</h5>';
             
-            for (const [key, data] of Object.entries(consistencyAnalysis.breakdown)) {
-                const score = data.score || 0;
-                const reasoning = data.reasoning || 'No details available';
-                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                
-                html += `<div class="detailed-score-item">
-                    <div class="score-item-header">
-                        <span class="score-item-label">${label}</span>
-                        <span class="score-item-value ${getScoreColorClass(score)}">${score}/100</span>
+            for (const [component, details] of Object.entries(consistencyAnalysis.breakdown)) {
+                const componentName = component.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                html += `
+                    <div class="component-score">
+                        <div class="component-header">
+                            <span class="component-name">${componentName}</span>
+                            <span class="component-score-value">${details.score}/100</span>
+                        </div>
+                        <div class="component-reasoning">${details.reasoning}</div>
+                        <div class="score-bar-mini">
+                            <div class="score-fill-mini ${getScoreColorClass(details.score)}" style="width: ${details.score}%"></div>
+                        </div>
                     </div>
-                    <div class="score-item-bar">
-                        <div class="score-item-fill ${getScoreColorClass(score)}" style="width: ${score}%"></div>
-                    </div>
-                    <div class="score-item-reasoning">${reasoning}</div>
-                </div>`;
+                `;
             }
-            
-            html += `</div></div>`;
+            html += '</div>';
         }
         
-        // Detected entities
+        // Show detected entities if available
         if (consistencyAnalysis.detected_entities) {
-            html += `<div class="entities-section">
-                <h5>🔍 Detected Elements</h5>
-                <div class="entities-grid">`;
+            html += '<div class="detected-entities">';
+            html += '<h6>🏷️ Detected Entities</h6>';
             
             if (consistencyAnalysis.detected_entities.text_entities) {
                 html += `<div class="entity-group">
-                    <h6>📝 Text Entities:</h6>
-                    <div class="entity-tags">`;
-                consistencyAnalysis.detected_entities.text_entities.forEach(entity => {
-                    html += `<span class="entity-tag text-entity">${entity}</span>`;
-                });
-                html += `</div></div>`;
+                    <strong>Text Entities:</strong> ${consistencyAnalysis.detected_entities.text_entities.join(', ')}
+                </div>`;
             }
             
             if (consistencyAnalysis.detected_entities.image_objects) {
                 html += `<div class="entity-group">
-                    <h6>🖼️ Image Objects:</h6>
-                    <div class="entity-tags">`;
-                consistencyAnalysis.detected_entities.image_objects.forEach(object => {
-                    html += `<span class="entity-tag image-entity">${object}</span>`;
-                });
-                html += `</div></div>`;
+                    <strong>Image Objects:</strong> ${consistencyAnalysis.detected_entities.image_objects.join(', ')}
+                </div>`;
             }
             
-            html += `</div></div>`;
+            html += '</div>';
         }
         
-        // Contradictions found
+        // Show detected actions if available
+        if (consistencyAnalysis.detected_actions) {
+            html += '<div class="detected-actions">';
+            html += '<h6>🎬 Detected Actions</h6>';
+            
+            if (consistencyAnalysis.detected_actions.text_actions) {
+                html += `<div class="action-group">
+                    <strong>Text Actions:</strong> ${consistencyAnalysis.detected_actions.text_actions.join(', ')}
+                </div>`;
+            }
+            
+            if (consistencyAnalysis.detected_actions.image_scene) {
+                html += `<div class="action-group">
+                    <strong>Image Scene:</strong> ${consistencyAnalysis.detected_actions.image_scene}
+                </div>`;
+            }
+            
+            html += '</div>';
+        }
+        
         if (consistencyAnalysis.contradictions_found && consistencyAnalysis.contradictions_found.length > 0) {
-            html += `<div class="contradictions">
-                <h5>⚠️ Contradictions Found:</h5>
-                <ul class="flag-list">`;
+            html += `<div class="red-flags">
+                <strong>⚠️ Contradictions Found:</strong>
+                <ul>`;
             consistencyAnalysis.contradictions_found.forEach(contradiction => {
-                html += `<li class="flag-item red-flag">${contradiction}</li>`;
+                html += `<li>${contradiction}</li>`;
             });
             html += `</ul></div>`;
         }
@@ -515,96 +539,41 @@
         return html;
     }
     
-    function createScreenshotAnalysisSection(screenshotAnalysis) {
-        let html = `<div class="screenshot-analysis">
-            <h5>📸 Screenshot Analysis</h5>`;
+    function createAnalysisSection(title, analysis, emoji) {
+        // Legacy function - replaced by more detailed versions above
+        let html = `<div class="analysis-section">
+            <h4>${emoji} ${title}</h4>
+            <div class="analysis-content">`;
         
-        if (screenshotAnalysis.images_found) {
-            html += `<p><strong>Images Found:</strong> ${screenshotAnalysis.images_found}</p>`;
+        if (analysis.verdict) {
+            html += `<p><strong>Verdict:</strong> ${analysis.verdict}</p>`;
         }
         
-        if (screenshotAnalysis.image_descriptions && screenshotAnalysis.image_descriptions.length > 0) {
-            html += `<div class="image-descriptions">`;
-            
-            screenshotAnalysis.image_descriptions.forEach((desc, index) => {
-                html += `<div class="image-description-item">
-                    <h6>🖼️ Image ${desc.index || index + 1}</h6>
-                    <p><strong>Type:</strong> ${desc.type || 'Unknown'}</p>
-                    <p><strong>Description:</strong> ${desc.description || 'No description available'}</p>
-                    
-                    ${desc.emotional_tone ? `<p><strong>Emotional Tone:</strong> ${desc.emotional_tone}</p>` : ''}
-                    ${desc.context_relevance ? `<p><strong>Context Relevance:</strong> ${desc.context_relevance}</p>` : ''}
-                    
-                    ${desc.authenticity_indicators && desc.authenticity_indicators.length > 0 ? `
-                        <div class="authenticity-indicators">
-                            <strong>🔍 Authenticity Indicators:</strong>
-                            <ul class="flag-list">
-                                ${desc.authenticity_indicators.map(indicator => `<li class="flag-item neutral-flag">${indicator}</li>`).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${desc.potential_issues && desc.potential_issues.length > 0 ? `
-                        <div class="potential-issues">
-                            <strong>⚠️ Potential Issues:</strong>
-                            <ul class="flag-list">
-                                ${desc.potential_issues.map(issue => `<li class="flag-item red-flag">${issue}</li>`).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                </div>`;
+        if (analysis.red_flags && analysis.red_flags.length > 0) {
+            html += `<div class="red-flags">
+                <strong>⚠️ Concerns Found:</strong>
+                <ul>`;
+            analysis.red_flags.forEach(flag => {
+                html += `<li>${flag}</li>`;
             });
-            
-            html += `</div>`;
+            html += `</ul></div>`;
         }
         
-        html += `</div>`;
-        return html;
-    }
-    
-    function getVerdictClass(verdict) {
-        const verdictClasses = {
-            'HIGHLY_CREDIBLE': 'verdict-excellent',
-            'CREDIBLE': 'verdict-good',
-            'QUESTIONABLE': 'verdict-warning',
-            'UNRELIABLE': 'verdict-poor',
-            'HIGHLY_UNRELIABLE': 'verdict-danger',
-            'HIGHLY_SUSPICIOUS': 'verdict-danger',
-            'HIGHLY_CONSISTENT': 'verdict-excellent',
-            'CONSISTENT': 'verdict-good'
-        };
-        return verdictClasses[verdict] || 'verdict-unknown';
-    }
-    
-    function createWeightsInfo(weights) {
-        if (!weights) return '';
-        
-        let html = `<div class="weights-info">
-            <h6>📊 Score Calculation:</h6>
-            <div class="weights-breakdown">`;
-        
-        if (weights.text_weight) {
-            html += `<div class="weight-item">
-                <span class="weight-label">📝 Text:</span>
-                <span class="weight-value">${Math.round(weights.text_weight * 100)}%</span>
-            </div>`;
+        if (analysis.positive_indicators && analysis.positive_indicators.length > 0) {
+            html += `<div class="positive-indicators">
+                <strong>✅ Positive Indicators:</strong>
+                <ul>`;
+            analysis.positive_indicators.forEach(indicator => {
+                html += `<li>${indicator}</li>`;
+            });
+            html += `</ul></div>`;
         }
         
-        if (weights.image_weight) {
-            html += `<div class="weight-item">
-                <span class="weight-label">🖼️ Image:</span>
-                <span class="weight-value">${Math.round(weights.image_weight * 100)}%</span>
-            </div>`;
+        if (analysis.consistency_summary) {
+            html += `<p><strong>Summary:</strong> ${analysis.consistency_summary}</p>`;
         }
         
-        if (weights.consistency_weight) {
-            html += `<div class="weight-item">
-                <span class="weight-label">⚖️ Consistency:</span>
-                <span class="weight-value">${Math.round(weights.consistency_weight * 100)}%</span>
-            </div>`;
-        }
-        
-        html += `</div></div>`;
+        html += '</div></div>';
         return html;
     }
     
