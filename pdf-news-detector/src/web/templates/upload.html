@@ -85,6 +85,11 @@
         // Click to upload
         uploadArea.addEventListener('click', () => fileInput.click());
         
+        // Prevent file input from triggering the upload area click again
+        fileInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        
         // File selection handler
         fileInput.addEventListener('change', handleFileSelect);
         

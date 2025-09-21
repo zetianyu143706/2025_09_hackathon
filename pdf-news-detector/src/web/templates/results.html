@@ -121,7 +121,7 @@
         resultsContent.innerHTML = `
             <div class="analysis-results">
                 <div class="results-header">
-                    <h2>📊 Analysis Results</h2>
+                    <h3>📊 Analysis Results</h3>
                     <div class="file-info">
                         <p><strong>File:</strong> ${status.filename}</p>
                         <p><strong>Analysis Date:</strong> ${results.analysis_timestamp ? new Date(results.analysis_timestamp).toLocaleString() : 'Just now'}</p>
@@ -136,6 +136,7 @@
                     <div class="verdict-info">
                         <h3>${verdictInfo.emoji} ${verdict.replace(/_/g, ' ')}</h3>
                         <p class="verdict-description">${verdictInfo.description}</p>
+                        ${scoreBreakdown.weights ? createWeightsInfo(scoreBreakdown.weights) : ''}
                     </div>
                 </div>
                 
@@ -262,57 +263,348 @@
         
         // Text Analysis
         if (detailedAnalysis.text_analysis) {
-            html += createAnalysisSection('Text Analysis', detailedAnalysis.text_analysis, '📝');
+            html += createTextAnalysisSection(detailedAnalysis.text_analysis);
         }
         
         // Image Analysis
         if (detailedAnalysis.image_analysis) {
-            html += createAnalysisSection('Image Analysis', detailedAnalysis.image_analysis, '🖼️');
+            html += createImageAnalysisSection(detailedAnalysis.image_analysis);
         }
         
         // Consistency Analysis
         if (detailedAnalysis.consistency_analysis) {
-            html += createAnalysisSection('Consistency Analysis', detailedAnalysis.consistency_analysis, '⚖️');
+            html += createConsistencyAnalysisSection(detailedAnalysis.consistency_analysis);
         }
         
         html += '</div>';
         return html;
     }
     
-    function createAnalysisSection(title, analysis, emoji) {
-        let html = `<div class="analysis-section">
-            <h4>${emoji} ${title}</h4>
+    function createTextAnalysisSection(textAnalysis) {
+        let html = `<div class="analysis-section text-analysis-section">
+            <h4>📝 Text Analysis</h4>
             <div class="analysis-content">`;
         
-        if (analysis.verdict) {
-            html += `<p><strong>Verdict:</strong> ${analysis.verdict}</p>`;
+        if (textAnalysis.verdict) {
+            html += `<div class="verdict-badge ${getVerdictClass(textAnalysis.verdict)}">
+                <strong>Verdict:</strong> ${textAnalysis.verdict}
+            </div>`;
         }
         
-        if (analysis.red_flags && analysis.red_flags.length > 0) {
+        // Detailed breakdown
+        if (textAnalysis.breakdown) {
+            html += `<div class="score-breakdown-detailed">
+                <h5>📊 Score Breakdown</h5>
+                <div class="detailed-scores">`;
+            
+            for (const [key, data] of Object.entries(textAnalysis.breakdown)) {
+                const score = data.score || 0;
+                const reasoning = data.reasoning || 'No details available';
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                html += `<div class="detailed-score-item">
+                    <div class="score-item-header">
+                        <span class="score-item-label">${label}</span>
+                        <span class="score-item-value ${getScoreColorClass(score)}">${score}/100</span>
+                    </div>
+                    <div class="score-item-bar">
+                        <div class="score-item-fill ${getScoreColorClass(score)}" style="width: ${score}%"></div>
+                    </div>
+                    <div class="score-item-reasoning">${reasoning}</div>
+                </div>`;
+            }
+            
+            html += `</div></div>`;
+        }
+        
+        // Red flags
+        if (textAnalysis.red_flags && textAnalysis.red_flags.length > 0) {
             html += `<div class="red-flags">
-                <strong>⚠️ Concerns Found:</strong>
-                <ul>`;
-            analysis.red_flags.forEach(flag => {
-                html += `<li>${flag}</li>`;
+                <h5>⚠️ Concerns Found:</h5>
+                <ul class="flag-list">`;
+            textAnalysis.red_flags.forEach(flag => {
+                html += `<li class="flag-item red-flag">${flag}</li>`;
             });
             html += `</ul></div>`;
         }
         
-        if (analysis.positive_indicators && analysis.positive_indicators.length > 0) {
+        // Positive indicators
+        if (textAnalysis.positive_indicators && textAnalysis.positive_indicators.length > 0) {
             html += `<div class="positive-indicators">
-                <strong>✅ Positive Indicators:</strong>
-                <ul>`;
-            analysis.positive_indicators.forEach(indicator => {
-                html += `<li>${indicator}</li>`;
+                <h5>✅ Positive Indicators:</h5>
+                <ul class="flag-list">`;
+            textAnalysis.positive_indicators.forEach(indicator => {
+                html += `<li class="flag-item positive-flag">${indicator}</li>`;
             });
             html += `</ul></div>`;
-        }
-        
-        if (analysis.consistency_summary) {
-            html += `<p><strong>Summary:</strong> ${analysis.consistency_summary}</p>`;
         }
         
         html += '</div></div>';
+        return html;
+    }
+    
+    function createImageAnalysisSection(imageAnalysis) {
+        let html = `<div class="analysis-section image-analysis-section">
+            <h4>🖼️ Image Analysis</h4>
+            <div class="analysis-content">`;
+        
+        if (imageAnalysis.average_score !== undefined) {
+            html += `<div class="section-score">
+                <strong>Overall Image Score:</strong> 
+                <span class="score-highlight ${getScoreColorClass(imageAnalysis.average_score)}">${Math.round(imageAnalysis.average_score)}/100</span>
+            </div>`;
+        }
+        
+        // Individual image analyses
+        if (imageAnalysis.individual_analyses && imageAnalysis.individual_analyses.length > 0) {
+            imageAnalysis.individual_analyses.forEach((analysis, index) => {
+                html += `<div class="image-analysis-item">
+                    <h6>🔍 Image ${index + 1} Analysis</h6>`;
+                
+                if (analysis.verdict) {
+                    html += `<div class="verdict-badge ${getVerdictClass(analysis.verdict)}">
+                        <strong>Verdict:</strong> ${analysis.verdict}
+                    </div>`;
+                }
+                
+                // Detailed breakdown for this image
+                if (analysis.breakdown) {
+                    html += `<div class="score-breakdown-detailed">
+                        <h6>📊 Authenticity Checks</h6>
+                        <div class="detailed-scores">`;
+                    
+                    for (const [key, data] of Object.entries(analysis.breakdown)) {
+                        const score = data.score || 0;
+                        const reasoning = data.reasoning || 'No details available';
+                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        
+                        html += `<div class="detailed-score-item">
+                            <div class="score-item-header">
+                                <span class="score-item-label">${label}</span>
+                                <span class="score-item-value ${getScoreColorClass(score)}">${score}/100</span>
+                            </div>
+                            <div class="score-item-bar">
+                                <div class="score-item-fill ${getScoreColorClass(score)}" style="width: ${score}%"></div>
+                            </div>
+                            <div class="score-item-reasoning">${reasoning}</div>
+                        </div>`;
+                    }
+                    
+                    html += `</div></div>`;
+                }
+                
+                // Red flags for this image
+                if (analysis.red_flags && analysis.red_flags.length > 0) {
+                    html += `<div class="red-flags">
+                        <h6>⚠️ Suspicious Signs:</h6>
+                        <ul class="flag-list">`;
+                    analysis.red_flags.forEach(flag => {
+                        html += `<li class="flag-item red-flag">${flag}</li>`;
+                    });
+                    html += `</ul></div>`;
+                }
+                
+                // Authentic indicators
+                if (analysis.authentic_indicators && analysis.authentic_indicators.length > 0) {
+                    html += `<div class="positive-indicators">
+                        <h6>✅ Authentic Signs:</h6>
+                        <ul class="flag-list">`;
+                    analysis.authentic_indicators.forEach(indicator => {
+                        html += `<li class="flag-item positive-flag">${indicator}</li>`;
+                    });
+                    html += `</ul></div>`;
+                }
+                
+                html += `</div>`;
+            });
+        }
+        
+        // Screenshot analysis details
+        if (imageAnalysis.screenshot_analysis) {
+            html += createScreenshotAnalysisSection(imageAnalysis.screenshot_analysis);
+        }
+        
+        html += '</div></div>';
+        return html;
+    }
+    
+    function createConsistencyAnalysisSection(consistencyAnalysis) {
+        let html = `<div class="analysis-section consistency-analysis-section">
+            <h4>⚖️ Consistency Analysis</h4>
+            <div class="analysis-content">`;
+        
+        if (consistencyAnalysis.verdict) {
+            html += `<div class="verdict-badge ${getVerdictClass(consistencyAnalysis.verdict)}">
+                <strong>Verdict:</strong> ${consistencyAnalysis.verdict}
+            </div>`;
+        }
+        
+        if (consistencyAnalysis.consistency_summary) {
+            html += `<div class="consistency-summary">
+                <p><strong>Summary:</strong> ${consistencyAnalysis.consistency_summary}</p>
+            </div>`;
+        }
+        
+        // Detailed consistency breakdown
+        if (consistencyAnalysis.breakdown) {
+            html += `<div class="score-breakdown-detailed">
+                <h5>📊 Consistency Checks</h5>
+                <div class="detailed-scores">`;
+            
+            for (const [key, data] of Object.entries(consistencyAnalysis.breakdown)) {
+                const score = data.score || 0;
+                const reasoning = data.reasoning || 'No details available';
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                html += `<div class="detailed-score-item">
+                    <div class="score-item-header">
+                        <span class="score-item-label">${label}</span>
+                        <span class="score-item-value ${getScoreColorClass(score)}">${score}/100</span>
+                    </div>
+                    <div class="score-item-bar">
+                        <div class="score-item-fill ${getScoreColorClass(score)}" style="width: ${score}%"></div>
+                    </div>
+                    <div class="score-item-reasoning">${reasoning}</div>
+                </div>`;
+            }
+            
+            html += `</div></div>`;
+        }
+        
+        // Detected entities
+        if (consistencyAnalysis.detected_entities) {
+            html += `<div class="entities-section">
+                <h5>🔍 Detected Elements</h5>
+                <div class="entities-grid">`;
+            
+            if (consistencyAnalysis.detected_entities.text_entities) {
+                html += `<div class="entity-group">
+                    <h6>📝 Text Entities:</h6>
+                    <div class="entity-tags">`;
+                consistencyAnalysis.detected_entities.text_entities.forEach(entity => {
+                    html += `<span class="entity-tag text-entity">${entity}</span>`;
+                });
+                html += `</div></div>`;
+            }
+            
+            if (consistencyAnalysis.detected_entities.image_objects) {
+                html += `<div class="entity-group">
+                    <h6>🖼️ Image Objects:</h6>
+                    <div class="entity-tags">`;
+                consistencyAnalysis.detected_entities.image_objects.forEach(object => {
+                    html += `<span class="entity-tag image-entity">${object}</span>`;
+                });
+                html += `</div></div>`;
+            }
+            
+            html += `</div></div>`;
+        }
+        
+        // Contradictions found
+        if (consistencyAnalysis.contradictions_found && consistencyAnalysis.contradictions_found.length > 0) {
+            html += `<div class="contradictions">
+                <h5>⚠️ Contradictions Found:</h5>
+                <ul class="flag-list">`;
+            consistencyAnalysis.contradictions_found.forEach(contradiction => {
+                html += `<li class="flag-item red-flag">${contradiction}</li>`;
+            });
+            html += `</ul></div>`;
+        }
+        
+        html += '</div></div>';
+        return html;
+    }
+    
+    function createScreenshotAnalysisSection(screenshotAnalysis) {
+        let html = `<div class="screenshot-analysis">
+            <h5>📸 Screenshot Analysis</h5>`;
+        
+        if (screenshotAnalysis.images_found) {
+            html += `<p><strong>Images Found:</strong> ${screenshotAnalysis.images_found}</p>`;
+        }
+        
+        if (screenshotAnalysis.image_descriptions && screenshotAnalysis.image_descriptions.length > 0) {
+            html += `<div class="image-descriptions">`;
+            
+            screenshotAnalysis.image_descriptions.forEach((desc, index) => {
+                html += `<div class="image-description-item">
+                    <h6>🖼️ Image ${desc.index || index + 1}</h6>
+                    <p><strong>Type:</strong> ${desc.type || 'Unknown'}</p>
+                    <p><strong>Description:</strong> ${desc.description || 'No description available'}</p>
+                    
+                    ${desc.emotional_tone ? `<p><strong>Emotional Tone:</strong> ${desc.emotional_tone}</p>` : ''}
+                    ${desc.context_relevance ? `<p><strong>Context Relevance:</strong> ${desc.context_relevance}</p>` : ''}
+                    
+                    ${desc.authenticity_indicators && desc.authenticity_indicators.length > 0 ? `
+                        <div class="authenticity-indicators">
+                            <strong>🔍 Authenticity Indicators:</strong>
+                            <ul class="flag-list">
+                                ${desc.authenticity_indicators.map(indicator => `<li class="flag-item neutral-flag">${indicator}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${desc.potential_issues && desc.potential_issues.length > 0 ? `
+                        <div class="potential-issues">
+                            <strong>⚠️ Potential Issues:</strong>
+                            <ul class="flag-list">
+                                ${desc.potential_issues.map(issue => `<li class="flag-item red-flag">${issue}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>`;
+            });
+            
+            html += `</div>`;
+        }
+        
+        html += `</div>`;
+        return html;
+    }
+    
+    function getVerdictClass(verdict) {
+        const verdictClasses = {
+            'HIGHLY_CREDIBLE': 'verdict-excellent',
+            'CREDIBLE': 'verdict-good',
+            'QUESTIONABLE': 'verdict-warning',
+            'UNRELIABLE': 'verdict-poor',
+            'HIGHLY_UNRELIABLE': 'verdict-danger',
+            'HIGHLY_SUSPICIOUS': 'verdict-danger',
+            'HIGHLY_CONSISTENT': 'verdict-excellent',
+            'CONSISTENT': 'verdict-good'
+        };
+        return verdictClasses[verdict] || 'verdict-unknown';
+    }
+    
+    function createWeightsInfo(weights) {
+        if (!weights) return '';
+        
+        let html = `<div class="weights-info">
+            <h6>📊 Score Calculation:</h6>
+            <div class="weights-breakdown">`;
+        
+        if (weights.text_weight) {
+            html += `<div class="weight-item">
+                <span class="weight-label">📝 Text:</span>
+                <span class="weight-value">${Math.round(weights.text_weight * 100)}%</span>
+            </div>`;
+        }
+        
+        if (weights.image_weight) {
+            html += `<div class="weight-item">
+                <span class="weight-label">🖼️ Image:</span>
+                <span class="weight-value">${Math.round(weights.image_weight * 100)}%</span>
+            </div>`;
+        }
+        
+        if (weights.consistency_weight) {
+            html += `<div class="weight-item">
+                <span class="weight-label">⚖️ Consistency:</span>
+                <span class="weight-value">${Math.round(weights.consistency_weight * 100)}%</span>
+            </div>`;
+        }
+        
+        html += `</div></div>`;
         return html;
     }
     
