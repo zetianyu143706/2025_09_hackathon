@@ -82,22 +82,256 @@
         loadingState.style.display = 'none';
         resultsContent.style.display = 'block';
         
-        // For now, show basic status info
-        // In Step 6, we'll implement full results display
+        // Get the full results from the API
+        if (status.results) {
+            displayFullResults(status);
+        } else {
+            // Fetch full results if not included in status
+            fetchAndDisplayResults(status.job_id, status);
+        }
+    }
+    
+    async function fetchAndDisplayResults(jobId, status) {
+        try {
+            const results = await getJobResults(jobId);
+            status.results = results.results;
+            displayFullResults(status);
+        } catch (error) {
+            console.error('Failed to fetch results:', error);
+            displayBasicResults(status);
+        }
+    }
+    
+    function displayFullResults(status) {
+        const resultsContent = document.getElementById('results-content');
+        const results = status.results;
+        
+        if (!results) {
+            displayBasicResults(status);
+            return;
+        }
+        
+        const finalScore = results.final_score || 0;
+        const verdict = results.verdict || 'UNKNOWN';
+        const scoreBreakdown = results.score_breakdown || {};
+        
+        // Get verdict color and emoji
+        const verdictInfo = getVerdictInfo(verdict, finalScore);
+        
+        resultsContent.innerHTML = `
+            <div class="analysis-results">
+                <div class="results-header">
+                    <h2>📊 Analysis Results</h2>
+                    <div class="file-info">
+                        <p><strong>File:</strong> ${status.filename}</p>
+                        <p><strong>Analysis Date:</strong> ${results.analysis_timestamp ? new Date(results.analysis_timestamp).toLocaleString() : 'Just now'}</p>
+                    </div>
+                </div>
+                
+                <div class="overall-score-card">
+                    <div class="score-circle ${verdictInfo.class}">
+                        <div class="score-number">${Math.round(finalScore)}</div>
+                        <div class="score-label">Credibility Score</div>
+                    </div>
+                    <div class="verdict-info">
+                        <h3>${verdictInfo.emoji} ${verdict.replace(/_/g, ' ')}</h3>
+                        <p class="verdict-description">${verdictInfo.description}</p>
+                    </div>
+                </div>
+                
+                <div class="score-breakdown">
+                    <h3>📈 Detailed Score Breakdown</h3>
+                    <div class="score-bars">
+                        ${createScoreBar('Text Credibility', scoreBreakdown.text_score || 0, '📝')}
+                        ${createScoreBar('Image Authenticity', scoreBreakdown.image_score || 0, '🖼️')}
+                        ${createScoreBar('Text-Image Consistency', scoreBreakdown.consistency_score || 0, '⚖️')}
+                    </div>
+                </div>
+                
+                ${createDetailedAnalysis(results.detailed_analysis)}
+                
+                <div class="analysis-metadata">
+                    <h3>🔍 Analysis Details</h3>
+                    <div class="metadata-grid">
+                        <div class="metadata-item">
+                            <strong>Source Type:</strong> ${results.input_source?.source_type || 'Unknown'}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Platform:</strong> ${results.input_source?.platform || 'Unknown'}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Layout:</strong> ${results.input_source?.layout_type || 'Unknown'}
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Job ID:</strong> ${status.job_id}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button onclick="downloadReport('${status.job_id}')" class="download-btn">📄 Download Full Report</button>
+                    <button onclick="window.location.href='/'" class="back-btn">🔄 Analyze Another Screenshot</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    function displayBasicResults(status) {
+        const resultsContent = document.getElementById('results-content');
         resultsContent.innerHTML = `
             <div class="result-summary">
-                <h3>Analysis Complete!</h3>
+                <h3>✅ Analysis Complete!</h3>
                 <p><strong>File:</strong> ${status.filename}</p>
                 <p><strong>Status:</strong> ${status.status}</p>
                 <p><strong>Progress:</strong> ${status.progress}%</p>
-                <div class="placeholder-results">
+                <div class="basic-results">
                     <p>🎉 Your screenshot has been analyzed successfully!</p>
-                    <p>Full results display will be implemented in Step 6.</p>
+                    <p>The detailed results are being processed. Please refresh the page in a moment.</p>
                     <p><strong>Job ID:</strong> ${status.job_id}</p>
                 </div>
                 <button onclick="window.location.href='/'" class="back-btn">Analyze Another Screenshot</button>
             </div>
         `;
+    }
+    
+    function getVerdictInfo(verdict, score) {
+        const verdictMap = {
+            'HIGHLY_CREDIBLE': { 
+                emoji: '✅', 
+                class: 'score-excellent', 
+                description: 'This content appears highly trustworthy with strong credibility indicators.' 
+            },
+            'CREDIBLE': { 
+                emoji: '👍', 
+                class: 'score-good', 
+                description: 'This content appears mostly credible with minor concerns.' 
+            },
+            'QUESTIONABLE': { 
+                emoji: '⚠️', 
+                class: 'score-warning', 
+                description: 'This content has mixed signals - verify before sharing.' 
+            },
+            'UNRELIABLE': { 
+                emoji: '❌', 
+                class: 'score-poor', 
+                description: 'This content shows multiple red flags and may be unreliable.' 
+            },
+            'HIGHLY_UNRELIABLE': { 
+                emoji: '🚨', 
+                class: 'score-danger', 
+                description: 'This content appears highly suspicious - likely fake or misleading.' 
+            }
+        };
+        
+        return verdictMap[verdict] || { 
+            emoji: '❓', 
+            class: 'score-unknown', 
+            description: 'Analysis incomplete or uncertain.' 
+        };
+    }
+    
+    function createScoreBar(label, score, emoji) {
+        const normalizedScore = Math.max(0, Math.min(100, score || 0));
+        const colorClass = getScoreColorClass(normalizedScore);
+        
+        return `
+            <div class="score-bar-container">
+                <div class="score-bar-header">
+                    <span class="score-bar-label">${emoji} ${label}</span>
+                    <span class="score-bar-value">${Math.round(normalizedScore)}/100</span>
+                </div>
+                <div class="score-bar-track">
+                    <div class="score-bar-fill ${colorClass}" style="width: ${normalizedScore}%"></div>
+                </div>
+            </div>
+        `;
+    }
+    
+    function getScoreColorClass(score) {
+        if (score >= 80) return 'score-excellent';
+        if (score >= 60) return 'score-good';
+        if (score >= 40) return 'score-warning';
+        if (score >= 20) return 'score-poor';
+        return 'score-danger';
+    }
+    
+    function createDetailedAnalysis(detailedAnalysis) {
+        if (!detailedAnalysis) return '';
+        
+        let html = '<div class="detailed-analysis"><h3>🔬 Detailed Analysis</h3>';
+        
+        // Text Analysis
+        if (detailedAnalysis.text_analysis) {
+            html += createAnalysisSection('Text Analysis', detailedAnalysis.text_analysis, '📝');
+        }
+        
+        // Image Analysis
+        if (detailedAnalysis.image_analysis) {
+            html += createAnalysisSection('Image Analysis', detailedAnalysis.image_analysis, '🖼️');
+        }
+        
+        // Consistency Analysis
+        if (detailedAnalysis.consistency_analysis) {
+            html += createAnalysisSection('Consistency Analysis', detailedAnalysis.consistency_analysis, '⚖️');
+        }
+        
+        html += '</div>';
+        return html;
+    }
+    
+    function createAnalysisSection(title, analysis, emoji) {
+        let html = `<div class="analysis-section">
+            <h4>${emoji} ${title}</h4>
+            <div class="analysis-content">`;
+        
+        if (analysis.verdict) {
+            html += `<p><strong>Verdict:</strong> ${analysis.verdict}</p>`;
+        }
+        
+        if (analysis.red_flags && analysis.red_flags.length > 0) {
+            html += `<div class="red-flags">
+                <strong>⚠️ Concerns Found:</strong>
+                <ul>`;
+            analysis.red_flags.forEach(flag => {
+                html += `<li>${flag}</li>`;
+            });
+            html += `</ul></div>`;
+        }
+        
+        if (analysis.positive_indicators && analysis.positive_indicators.length > 0) {
+            html += `<div class="positive-indicators">
+                <strong>✅ Positive Indicators:</strong>
+                <ul>`;
+            analysis.positive_indicators.forEach(indicator => {
+                html += `<li>${indicator}</li>`;
+            });
+            html += `</ul></div>`;
+        }
+        
+        if (analysis.consistency_summary) {
+            html += `<p><strong>Summary:</strong> ${analysis.consistency_summary}</p>`;
+        }
+        
+        html += '</div></div>';
+        return html;
+    }
+    
+    async function downloadReport(jobId) {
+        try {
+            const results = await getJobResults(jobId);
+            const reportData = JSON.stringify(results.results, null, 2);
+            const blob = new Blob([reportData], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analysis-report-${jobId}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            alert('Failed to download report: ' + error.message);
+        }
     }
     
     function showError(message) {
